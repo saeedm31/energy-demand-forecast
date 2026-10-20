@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+models/
+runs/
+mlruns/
+reports/backtest.csv
+*.zip
+household_power_consumption.txt
+.DS_Store
