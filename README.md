@@ -6,7 +6,7 @@
 [![scikit-learn](https://img.shields.io/badge/ML-scikit--learn-F7931E?logo=scikitlearn)](https://scikit-learn.org/)
 [![MLflow](https://img.shields.io/badge/Tracking-MLflow-0194E2?logo=mlflow)](https://mlflow.org/)
 [![Flask](https://img.shields.io/badge/API-Flask-000000?logo=flask)](https://flask.palletsprojects.com/)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](#-tests)
+[![Tests](https://github.com/saeedm31/energy-demand-forecast/actions/workflows/tests.yml/badge.svg)](https://github.com/saeedm31/energy-demand-forecast/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 ---
@@ -28,6 +28,10 @@ Measured with a **rolling-origin backtest**: every week of the final year, the m
 | **Gradient boosting + conformal range** | **4.38** | **5.82** | **18.8%** | **30.0%** | **77.6%** | 13.8 kWh |
 
 Test period: 2009-11-20 to 2010-11-25. Average use is about 26 kWh/day.
+
+![Forecast vs actual over the test year, with the 80% range](docs/backtest.svg)
+
+The biggest misses are weeks when use suddenly drops to base load (late February, August), most likely the household being away. The model only sees the drop once it has started; a calendar of planned absences would fix most of it.
 
 - **Skill** is the error reduction against the naive baseline, "same weekday last week".
 - **Coverage** is how often the true value fell inside the 80% range: the target is 80%.
@@ -100,6 +104,7 @@ Every backtest logs each model's parameters, metrics and reports as a run.
 ├── prepare_data.py            # raw minute data → clean daily series
 ├── train.py                   # backtest, tracking, final model
 ├── api.py                     # Flask API and dashboard
+├── plot_backtest.py           # draws docs/backtest.svg from the backtest
 ├── energy_forecast/
 │   ├── features.py            # leakage-free features, French holidays
 │   ├── models.py              # baseline, Ridge, gradient boosting + conformal intervals
@@ -117,7 +122,7 @@ Every backtest logs each model's parameters, metrics and reports as a run.
 python -m unittest
 ```
 
-The tests cover:
+They run automatically on every push (GitHub Actions). The tests cover:
 - holiday dates
 - **no future leakage** in the features
 - the backtest never training on its test period
