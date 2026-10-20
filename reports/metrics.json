@@ -1,0 +1,117 @@
+{
+  "data": {
+    "first_day": "2006-12-17",
+    "last_day": "2010-11-25",
+    "days": 1440,
+    "imputed_days": 21
+  },
+  "backtest": {
+    "weeks": 52,
+    "horizon_days": 14,
+    "test_period": [
+      "2009-11-20",
+      "2010-11-25"
+    ]
+  },
+  "scores": [
+    {
+      "model": "seasonal_naive",
+      "mae_kwh": 6.257,
+      "rmse_kwh": 8.136,
+      "mape_pct": 27.172,
+      "skill_vs_naive_pct": 0.0,
+      "interval_coverage_pct": null,
+      "interval_width_kwh": null
+    },
+    {
+      "model": "ridge",
+      "mae_kwh": 4.837,
+      "rmse_kwh": 6.288,
+      "mape_pct": 22.475,
+      "skill_vs_naive_pct": 22.696,
+      "interval_coverage_pct": null,
+      "interval_width_kwh": null
+    },
+    {
+      "model": "gradient_boosting",
+      "mae_kwh": 4.382,
+      "rmse_kwh": 5.818,
+      "mape_pct": 18.756,
+      "skill_vs_naive_pct": 29.969,
+      "interval_coverage_pct": 77.571,
+      "interval_width_kwh": 13.782
+    }
+  ],
+  "mae_by_horizon": {
+    "1": {
+      "gradient_boosting": 3.188,
+      "ridge": 3.377,
+      "seasonal_naive": 4.555
+    },
+    "2": {
+      "gradient_boosting": 5.245,
+      "ridge": 5.644,
+      "seasonal_naive": 5.905
+    },
+    "3": {
+      "gradient_boosting": 4.897,
+      "ridge": 5.813,
+      "seasonal_naive": 7.791
+    },
+    "4": {
+      "gradient_boosting": 4.184,
+      "ridge": 4.591,
+      "seasonal_naive": 5.744
+    },
+    "5": {
+      "gradient_boosting": 3.525,
+      "ridge": 3.793,
+      "seasonal_naive": 5.259
+    },
+    "6": {
+      "gradient_boosting": 4.731,
+      "ridge": 5.102,
+      "seasonal_naive": 6.387
+    },
+    "7": {
+      "gradient_boosting": 4.761,
+      "ridge": 4.88,
+      "seasonal_naive": 5.908
+    },
+    "8": {
+      "gradient_boosting": 3.463,
+      "ridge": 3.7,
+      "seasonal_naive": 4.93
+    },
+    "9": {
+      "gradient_boosting": 5.455,
+      "ridge": 5.639,
+      "seasonal_naive": 7.268
+    },
+    "10": {
+      "gradient_boosting": 4.802,
+      "ridge": 5.937,
+      "seasonal_naive": 6.999
+    },
+    "11": {
+      "gradient_boosting": 4.311,
+      "ridge": 4.926,
+      "seasonal_naive": 7.083
+    },
+    "12": {
+      "gradient_boosting": 3.214,
+      "ridge": 3.946,
+      "seasonal_naive": 5.365
+    },
+    "13": {
+      "gradient_boosting": 4.676,
+      "ridge": 5.342,
+      "seasonal_naive": 7.752
+    },
+    "14": {
+      "gradient_boosting": 4.997,
+      "ridge": 5.154,
+      "seasonal_naive": 6.764
+    }
+  }
+}
