@@ -9,6 +9,8 @@
 [![Tests](https://github.com/saeedm31/energy-demand-forecast/actions/workflows/tests.yml/badge.svg)](https://github.com/saeedm31/energy-demand-forecast/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
+📚 **Documentation:** [architecture](docs/architecture.md) · [model card](docs/model_card.md) · [data card](docs/data_card.md)
+
 ---
 
 ## 💡 The problem
@@ -112,6 +114,7 @@ Every backtest logs each model's parameters, metrics and reports as a run.
 │   ├── tracking.py            # MLflow or local run log
 │   └── service.py             # forecast from the latest data
 ├── data/daily_energy.csv      # 1,440 days, 2006-12-17 to 2010-11-25
+├── docs/                      # architecture, model card, data card, backtest chart
 ├── reports/metrics.json       # latest backtest results
 └── tests/                     # unit tests
 ```
