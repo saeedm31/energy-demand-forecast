@@ -1,0 +1,39 @@
+name: Task for the Copilot agent
+description: A small, well-defined change that a maintainer can assign to the Copilot coding agent.
+title: "[Task] "
+labels: ["copilot-task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only maintainers can assign issues to Copilot. Keep the task small: one behaviour, testable.
+        The agent follows `.github/copilot-instructions.md`, opens a pull request, and a person reviews and merges it.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should change, in one or two sentences?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Done when
+      description: Concrete checks a reviewer can verify, ideally as tests.
+      placeholder: |
+        - GET /api/forecast?days=7 returns 7 days
+        - A test covers it and all tests pass
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Files likely involved and out of scope
+      description: Optional. Point to files, and say what must not change.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety
+      options:
+        - label: This issue contains no secrets, keys or personal data.
+          required: true

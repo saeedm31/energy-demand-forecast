@@ -9,7 +9,7 @@
 [![Tests](https://github.com/saeedm31/energy-demand-forecast/actions/workflows/tests.yml/badge.svg)](https://github.com/saeedm31/energy-demand-forecast/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-📚 **Documentation:** [architecture](docs/architecture.md) · [model card](docs/model_card.md) · [data card](docs/data_card.md)
+📚 **Documentation:** [architecture](docs/architecture.md) · [model card](docs/model_card.md) · [data card](docs/data_card.md) · [AI agent workflow](docs/ai-agent-workflow.md)
 
 ---
 
