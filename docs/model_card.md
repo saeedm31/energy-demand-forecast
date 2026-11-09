@@ -36,6 +36,8 @@ ahead, coverage and width of the 80% range. Outage days are not scored. Results 
 - One household: holidays away and guests make sudden drops the model only sees once they start.
 - No weather input, which would help most in winter.
 
-## Monitoring (production plan)
-Weekly: MAE and coverage of the last 4 weeks against the backtest. Retrain weekly; alert if coverage falls below
-70% or skill against the naive baseline turns negative.
+## Monitoring
+Live mode (optional) does this on real national demand for Portugal: the model is frozen at its training cutoff and
+every new day is scored (MAE, skill against the baseline, 80% coverage). A person retrains after at least 28 new days
+(configurable, minimum 7), behind a gate: beat the baseline in an 8-week rolling backtest, coverage 60-95%, recent data
+complete. In live mode the target is GWh per day and holidays are Portuguese.

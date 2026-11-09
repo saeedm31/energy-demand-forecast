@@ -23,3 +23,15 @@ the next 14 days are scored.
 
 ## Limits
 One household, so the patterns are personal. Aggregated demand across many homes is smoother and easier to forecast.
+
+## Live mode data (optional)
+
+| | |
+|---|---|
+| Source | [Energy-Charts](https://www.energy-charts.info) public power API, Fraunhofer ISE |
+| Series | `load`, Portugal, 15-minute values in MW |
+| Licence | CC BY 4.0, credit "energy-charts.info" (shown on the dashboard) |
+| Stored | `data/live/pt_daily_demand.csv`: one row per Lisbon day, GWh |
+| Checks | every interval present (23 or 25 hours on clock-change days), no nulls, 40-300 GWh, no duplicates |
+| Gaps | up to 7 missing days are filled with the same weekday a week earlier and flagged; never trained on or scored |
+| Personal data | none: national totals |

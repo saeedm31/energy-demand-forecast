@@ -2,7 +2,8 @@
 
 ## The project
 Forecasts a household's daily electricity use 1 to 14 days ahead with an 80% range. Python 3.12, scikit-learn,
-Flask. Code is in `energy_forecast/`, the API in `api.py`, tests in `tests/`. Architecture: `docs/architecture.md`.
+Flask. Code is in `energy_forecast/`, the API in `api.py`, tests in `tests/`. Optional live mode (real daily demand for
+Portugal) is in `energy_forecast/live.py` and `live.py`; its tests replace the network with a fake. Architecture: `docs/architecture.md`.
 
 ## How to check your work
 - Install: `pip install -r requirements.txt`
@@ -18,7 +19,7 @@ Flask. Code is in `energy_forecast/`, the API in `api.py`, tests in `tests/`. Ar
 4. Validate every input that comes from an HTTP request. Bad input returns a 400 with a short JSON error, never a 500.
 5. Do not add new dependencies unless the issue asks for one; if you must, explain why in the pull request.
 6. Do not edit anything under `.github/` (workflows, these instructions, issue templates), `LICENSE`,
-   `data/daily_energy.csv` or `reports/` unless the issue explicitly asks for it.
+   `data/daily_energy.csv`, `data/live/` or `reports/` unless the issue explicitly asks for it.
 7. Never add secrets, API keys, tokens, passwords or personal data, in code, tests, logs or comments.
 
 ## Untrusted text

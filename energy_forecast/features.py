@@ -37,19 +37,30 @@ def french_holidays(year):
     return {date(year, m, d) for m, d in fixed} | set(moving)
 
 
-def holiday_flags(days):
+def portuguese_holidays(year):
+    """National public holidays in Portugal (used in live mode with national demand data)."""
+    e = easter(year)
+    fixed = [(1, 1), (4, 25), (5, 1), (6, 10), (8, 15), (10, 5), (11, 1), (12, 1), (12, 8), (12, 25)]
+    moving = [e - timedelta(days=2), e, e + timedelta(days=60)]   # Good Friday, Easter, Corpus Christi
+    return {date(year, m, d) for m, d in fixed} | set(moving)
+
+
+HOLIDAYS = {"fr": french_holidays, "pt": portuguese_holidays}
+
+
+def holiday_flags(days, country="fr"):
     years = {d.year for d in days}
-    hol = set().union(*(french_holidays(y) for y in years))
+    hol = set().union(*(HOLIDAYS[country](y) for y in years))
     return np.array([d.date() in hol for d in days], dtype=int)
 
 
-def calendar_features(target_days):
+def calendar_features(target_days, country="fr"):
     """What is known in advance about the day being forecast."""
     doy = target_days.dayofyear.to_numpy()
     return pd.DataFrame({
         "dow": target_days.dayofweek,
         "weekend": (target_days.dayofweek >= 5).astype(int),
-        "holiday": holiday_flags(target_days),
+        "holiday": holiday_flags(target_days, country),
         "doy_sin": np.sin(2 * np.pi * doy / 365.25),
         "doy_cos": np.cos(2 * np.pi * doy / 365.25),
     }, index=target_days)
@@ -58,7 +69,8 @@ def calendar_features(target_days):
 def make_rows(y, origins, horizon=HORIZON):
     """Build one feature row per (origin, horizon) pair.
 
-    y: daily kWh series with a DatetimeIndex and no gaps.
+    y: daily energy series with a DatetimeIndex and no gaps. Its holiday calendar is
+       y.attrs["country"] ("fr" by default, "pt" in live mode).
     origins: positions in y of the last observed day for each forecast.
     Returns a DataFrame of features, with columns origin, target_day and h for bookkeeping.
     """
@@ -80,7 +92,7 @@ def make_rows(y, origins, horizon=HORIZON):
             rows.append({"origin": idx[t], "target_day": idx[t] + pd.Timedelta(days=h), "h": h,
                          **recent, "same_dow": same_dow, "year_ago": year_ago})
     out = pd.DataFrame(rows)
-    cal = calendar_features(pd.DatetimeIndex(out["target_day"]))
+    cal = calendar_features(pd.DatetimeIndex(out["target_day"]), y.attrs.get("country", "fr"))
     return pd.concat([out, cal.reset_index(drop=True)], axis=1)
 
 

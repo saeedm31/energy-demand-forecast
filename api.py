@@ -8,6 +8,8 @@ Endpoints:
     GET /api/forecast     next 14 days as JSON
     GET /api/metrics      backtest results (from train.py)
     GET /health           model and data status
+    GET /live             live mode (optional): Portugal's national demand, collected daily
+    GET /api/live         live mode as JSON: status, forecast, scores on days the model has not seen
 """
 
 import json
@@ -17,7 +19,7 @@ from html import escape
 
 from flask import Flask, jsonify, request
 
-from energy_forecast import service
+from energy_forecast import live, service
 
 app = Flask(__name__)
 app.json.sort_keys = False
@@ -60,10 +62,39 @@ def api_metrics():
 @app.get("/health")
 def health():
     y, model, _ = state()
-    return jsonify(ok=True, model=model.name, data_last_day=str(y.index[-1].date()), days=len(y))
+    return jsonify(ok=True, model=model.name, data_last_day=str(y.index[-1].date()), days=len(y),
+                   live_mode=live.is_on())
 
 
-def svg_chart(history, fc, width=900, height=320, pad=44):
+@lru_cache(maxsize=2)
+def live_view(data_version):
+    """Everything live mode shows, recomputed when the live data or state file changes."""
+    y, imputed = live.load()
+    st = live.read_state()
+    info = live.status(y, imputed, st)
+    model = live.current_model(y, imputed, st)
+    if model is None:
+        return y, info, None, None
+    return y, info, live.live_evaluation(model, y, imputed, st["trained_until"]), live.forecast(model, y)
+
+
+def live_version():
+    return tuple(os.path.getmtime(p) if os.path.exists(p) else 0 for p in (live.DATA_PATH, live.STATE_PATH))
+
+
+LIVE_OFF = {"error": "Live mode is off. Turn it on with the LIVE_MODE repository variable or run: python live.py collect"}
+
+
+@app.get("/api/live")
+def api_live():
+    if not live.is_on():
+        return jsonify(LIVE_OFF), 404
+    y, info, scores, fc = live_view(live_version())
+    return jsonify(status=info, live_test=scores, unit="GWh per day", interval="80%",
+                   days=fc.to_dict(orient="records") if fc is not None else [])
+
+
+def svg_chart(history, fc, width=900, height=320, pad=44, step=10):
     """Line chart of recent history and the forecast band, as inline SVG (no JavaScript needed)."""
     xs = list(history.index.strftime("%Y-%m-%d")) + list(fc["date"])
     values = list(history.values) + list(fc["upper_kwh"]) + list(fc["lower_kwh"])
@@ -85,7 +116,7 @@ def svg_chart(history, fc, width=900, height=320, pad=44):
     grid = "".join(
         f'<line x1="{pad}" x2="{width - pad}" y1="{py(v):.1f}" y2="{py(v):.1f}" class="grid"/>'
         f'<text x="{pad - 6}" y="{py(v) + 4:.1f}" text-anchor="end" class="axis">{v:.0f}</text>'
-        for v in range(0, int(hi_v) + 1, 10))
+        for v in range(0, int(hi_v) + 1, step))
     ticks = "".join(f'<text x="{px(i):.1f}" y="{height - pad + 18}" text-anchor="middle" class="axis">'
                     f'{escape(xs[i][5:])}</text>' for i in range(0, n, 7))
     return f'''<svg viewBox="0 0 {width} {height}" role="img" aria-label="Daily energy use and forecast">
@@ -121,7 +152,7 @@ PAGE = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <div class="card">{chart}</div>
 <div class="card"><table><tr><th>Date</th><th>Day</th><th>Forecast</th><th>80% range</th></tr>{rows}</table></div>
 <footer>Model: gradient boosting with conformal intervals · Data: UCI household power consumption (EDF R&amp;D) ·
-<a href="/api/forecast">JSON</a> · <a href="/api/metrics">backtest metrics</a></footer>
+<a href="/api/forecast">JSON</a> · <a href="/api/metrics">backtest metrics</a> · <a href="/live">live mode</a></footer>
 </div></body></html>"""
 
 
@@ -142,6 +173,51 @@ def index():
         f'<td><b>{r.forecast_kwh:.1f}</b></td><td>{r.lower_kwh:.1f} – {r.upper_kwh:.1f}</td></tr>'
         for r in fc.itertuples())
     return PAGE.format(last_day=y.index[-1].date(), stats=stats, chart=svg_chart(y.iloc[-56:], fc), rows=rows)
+
+
+LIVE_PAGE = PAGE[:PAGE.index("<h1>")] + """<h1>⚡ Live mode: Portugal's electricity demand</h1>
+<p class="sub">Real national demand (GWh per day), collected every day. The model is retrained only when a person
+starts it, after at least {window} new days; until then every new day tests the model on data it has not seen.</p>
+<div class="card stats">{stats}</div>
+{body}
+<footer>{source} · <a href="/api/live">JSON</a> · <a href="/">household forecast</a></footer>
+</div></body></html>"""
+
+
+def stat(value, label):
+    return f'<div class="stat"><b>{escape(str(value))}</b><span>{escape(label)}</span></div>'
+
+
+@app.get("/live")
+def live_page():
+    if not live.is_on():
+        return jsonify(LIVE_OFF), 404
+    y, info, scores, fc = live_view(live_version())
+    stats = (stat(info["data_last_day"], "last day collected") +
+             stat(info["trained_until"] or "not yet", "model trained on data up to") +
+             stat(info["new_days_since_training"] if info["new_days_since_training"] is not None else "–",
+                  "new days since training") +
+             stat("yes" if info["retrain_ready"] else f'after {info["next_retrain_after"]}', "retrain available"))
+    if fc is None:
+        body = '<div class="card">No model yet. Start the first training with <code>python live.py retrain</code>.</div>'
+    else:
+        test = ""
+        if scores.get("forecasts_scored"):
+            test = ('<div class="card stats">' +
+                    stat(f'{scores["mae_gwh"]:.1f} GWh', "average error on unseen days") +
+                    stat(f'{scores["mape_pct"]:.1f}%', "average error in percent") +
+                    stat(f'{scores["skill_vs_naive_pct"]:.0f}%', "better than last-week baseline") +
+                    stat(f'{scores["interval_coverage_pct"]:.0f}%', "of days inside the 80% range") +
+                    stat(scores["target_days"], "unseen days scored") + "</div>")
+        chart_fc = fc.rename(columns={"forecast_gwh": "forecast_kwh", "lower_gwh": "lower_kwh", "upper_gwh": "upper_kwh"})
+        rows = "".join(
+            f'<tr><td>{escape(r.date)}</td><td>{escape(r.weekday)}{" 🎉" if r.holiday else ""}</td>'
+            f'<td><b>{r.forecast_gwh:.1f}</b></td><td>{r.lower_gwh:.1f} – {r.upper_gwh:.1f}</td></tr>'
+            for r in fc.itertuples())
+        body = (test + f'<div class="card">{svg_chart(y.iloc[-56:], chart_fc, step=25)}</div>'
+                '<div class="card"><table><tr><th>Date</th><th>Day</th><th>Forecast (GWh)</th><th>80% range</th></tr>'
+                f'{rows}</table></div>')
+    return LIVE_PAGE.format(window=info["window_days"], stats=stats, body=body, source=escape(info["source"]))
 
 
 if __name__ == "__main__":
