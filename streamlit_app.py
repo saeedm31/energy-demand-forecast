@@ -16,22 +16,20 @@ from energy_forecast import live, service
 
 st.set_page_config(page_title="Energy demand forecast", page_icon="⚡", layout="wide")
 
-CHART_CSS = """<style>
- .ef svg { width: 100%; height: auto; }
- .ef .grid { stroke: rgba(128,128,128,.25); } .ef .axis { fill: #8a8f98; font-size: 11px; font-family: sans-serif; }
- .ef .hist { fill: none; stroke: #64748b; stroke-width: 2; }
- .ef .fc { fill: none; stroke: #0d9488; stroke-width: 2.5; stroke-dasharray: 6 4; }
- .ef .band { fill: #14b8a6; opacity: .2; } .ef .now { stroke: #8a8f98; stroke-dasharray: 2 3; }
+CHART_STYLE = """<style>
+ .grid { stroke: rgba(128,128,128,.3); } .axis { fill: #8a8f98; font-size: 11px; font-family: sans-serif; }
+ .hist { fill: none; stroke: #64748b; stroke-width: 2; }
+ .fc { fill: none; stroke: #0d9488; stroke-width: 2.5; stroke-dasharray: 6 4; }
+ .band { fill: #14b8a6; opacity: .2; } .now { stroke: #8a8f98; stroke-dasharray: 2 3; }
 </style>"""
 
 
 def chart(history, fc, step):
+    """The same SVG chart as the Flask dashboard, shown as an image (Streamlit strips inline SVG from HTML)."""
     fc = fc.rename(columns=lambda c: c.replace("_gwh", "_kwh"))      # svg_chart expects *_kwh column names
-    html = CHART_CSS + f'<div class="ef">{svg_chart(history, fc, step=step)}</div>'
-    if hasattr(st, "html"):
-        st.html(html)
-    else:
-        st.markdown(html, unsafe_allow_html=True)
+    svg = svg_chart(history, fc, step=step).replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ', 1)
+    svg = svg.replace(">", ">" + CHART_STYLE, 1)                       # styles inside the SVG itself
+    st.image(svg, width="stretch")
 
 
 def forecast_table(fc, unit):
