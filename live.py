@@ -1,6 +1,6 @@
 """Live mode command line (optional; the household dataset stays the default).
 
-    python live.py collect                     # add new days of Portugal's demand (first run backfills from 2019)
+    python live.py collect                     # add new days of Portugal's demand and temperature (first run backfills from 2019)
     python live.py status                      # data, training cutoff, live test scores, is a retrain due?
     python live.py retrain                     # new training if >= window_days new days (default 28)
     python live.py retrain --window-days 14    # change the window (minimum 7)
@@ -30,22 +30,29 @@ def main(argv=None):
 
     if args.cmd == "collect":
         live.collect()
+        try:
+            live.collect_weather()
+        except Exception as e:          # temperature is optional: demand data is kept either way
+            print(f"Weather not updated: {e}")
         return 0
 
     y, imputed = live.load()
     state = live.read_state()
+    weather = live.load_weather()
 
     if args.cmd == "status":
         info = live.status(y, imputed, state)
-        model = live.current_model(y, imputed, state)
+        info["uses_temperature"] = weather is not None
+        model = live.current_model(y, imputed, state, weather=weather)
         if model is not None:
-            info["live_test"] = live.live_evaluation(model, y, imputed, state["trained_until"])
+            info["live_test"] = live.live_evaluation(model, y, imputed, state["trained_until"], weather=weather)
         print(json.dumps(info, indent=2))
         return 0
 
     runs_before = len(state.get("history", []))
     try:
-        promoted, message, state = live.retrain(y, imputed, state, window_days=args.window_days, force=args.force)
+        promoted, message, state = live.retrain(y, imputed, state, window_days=args.window_days, force=args.force,
+                                                weather=weather)
     except ValueError as e:
         print(f"Error: {e}")
         return 2

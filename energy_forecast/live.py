@@ -11,6 +11,7 @@ The cycle:
               default 28), a person can start a new training. It is promoted only if it passes a gate.
 
 Data source: Energy-Charts public power API by Fraunhofer ISE, series "load" (MW), no key needed.
+Temperature (optional input): Open-Meteo, see energy_forecast/weather.py.
 """
 
 import json
@@ -25,7 +26,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from . import backtest, models
+from . import backtest, models, weather as wx
 from .features import HORIZON, make_rows
 
 LIVE_DIR = "data/live"
@@ -170,6 +171,11 @@ def collect(path=None, today=None, get=None, pause=None, log=print):
     return merged, problems
 
 
+def collect_weather(today=None, get=None, log=print):
+    """Measured temperatures and today's 16-day temperature forecast (Open-Meteo)."""
+    return wx.collect(today or datetime.now(TZ).date(), get=get, log=log)
+
+
 def load(path=None):
     """Return (gwh, imputed) daily Series with no gaps, ready for the model.
 
@@ -224,11 +230,15 @@ def new_model():
     return models.BoostingModel()
 
 
-def fit_until(y, imputed, cutoff, model=None):
+def load_weather():
+    return wx.Weather.load()
+
+
+def fit_until(y, imputed, cutoff, model=None, weather=None):
     """Train the boosting model on data up to and including `cutoff` (a Timestamp)."""
     model = model or new_model()
     last = y.index.get_loc(cutoff)
-    rows = backtest.training_rows(y, last)
+    rows = backtest.training_rows(y, last, weather=weather)
     days = pd.DatetimeIndex(rows["target_day"])
     keep = ~imputed.reindex(days).to_numpy()
     model.fit(rows[keep], y.reindex(days).to_numpy()[keep])
@@ -236,7 +246,7 @@ def fit_until(y, imputed, cutoff, model=None):
     return model
 
 
-def current_model(y, imputed, state, path=None):
+def current_model(y, imputed, state, path=None, weather=None):
     """The model frozen at the state's cutoff (cached on disk; training is deterministic)."""
     if not state.get("trained_until"):
         return None
@@ -244,9 +254,11 @@ def current_model(y, imputed, state, path=None):
     path = path or MODEL_PATH
     if os.path.exists(path):
         model = joblib.load(path)
-        if getattr(model, "trained_until", None) == cutoff:
+        if (getattr(model, "trained_until", None) == cutoff
+                and getattr(model, "uses_weather", False) == (weather is not None)):
             return model
-    model = fit_until(y, imputed, cutoff)
+    model = fit_until(y, imputed, cutoff, weather=weather)
+    model.uses_weather = weather is not None
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     joblib.dump(model, path)
     return model
@@ -254,7 +266,7 @@ def current_model(y, imputed, state, path=None):
 
 # ---------- 2. evaluate on days the model has not seen ----------
 
-def live_evaluation(model, y, imputed, cutoff, horizon=HORIZON):
+def live_evaluation(model, y, imputed, cutoff, horizon=HORIZON, weather=None):
     """Score the frozen model on every forecast whose target day came after its training cutoff.
 
     Each forecast uses only data up to its own origin day, exactly as it would have been made live.
@@ -264,7 +276,7 @@ def live_evaluation(model, y, imputed, cutoff, horizon=HORIZON):
     out = {"days_since_training": int((y.index[-1] - cutoff).days), "forecasts_scored": 0}
     if last < first:
         return out
-    rows = make_rows(y, list(range(first, last + 1)), horizon)
+    rows = make_rows(y, list(range(first, last + 1)), horizon, weather)
     rows = rows[rows["target_day"] <= y.index[-1]].reset_index(drop=True)
     days = pd.DatetimeIndex(rows["target_day"])
     keep = ~imputed.reindex(days).to_numpy()
@@ -315,11 +327,12 @@ def status(y, imputed, state, today=None):
 
 # ---------- 3. retrain, by a person, behind a gate ----------
 
-def gate(y, imputed, weeks=GATE_WEEKS, make_models=None):
+def gate(y, imputed, weeks=GATE_WEEKS, make_models=None, weather=None):
     """Re-run a short rolling backtest on the newest data. The new model is promoted only if it
     still beats the last-week baseline and its 80% range is honest."""
     make_models = make_models or (lambda: [models.SeasonalNaive(), new_model()])
-    scores = backtest.score(backtest.backtest(y, imputed, make_models(), test_weeks=weeks)).set_index("model")
+    scores = backtest.score(backtest.backtest(y, imputed, make_models(), test_weeks=weeks,
+                                              weather=weather)).set_index("model")
     gb = scores.loc["gradient_boosting"]
     coverage = float(gb.get("interval_coverage_pct", float("nan")))
     checks = {
@@ -333,7 +346,8 @@ def gate(y, imputed, weeks=GATE_WEEKS, make_models=None):
     return all(checks.values()), result
 
 
-def retrain(y, imputed, state, window_days=None, force=False, now=None, gate_fn=None, model_path=None):
+def retrain(y, imputed, state, window_days=None, force=False, now=None, gate_fn=None, model_path=None,
+            weather=None):
     """Start a new training if enough new days were collected. Returns (promoted, message, state)."""
     state = dict(state)
     if window_days is not None:
@@ -346,17 +360,19 @@ def retrain(y, imputed, state, window_days=None, force=False, now=None, gate_fn=
                        f"the window is {state['window_days']}. Next retrain after {info['next_retrain_after']}."), state
     previous = None
     if state.get("trained_until"):
-        old = current_model(y, imputed, state, path=model_path)
-        previous = live_evaluation(old, y, imputed, state["trained_until"])
-    ok, gate_result = (gate_fn or gate)(y, imputed)
+        old = current_model(y, imputed, state, path=model_path, weather=weather)
+        previous = live_evaluation(old, y, imputed, state["trained_until"], weather=weather)
+    ok, gate_result = gate_fn(y, imputed) if gate_fn else gate(y, imputed, weather=weather)
     entry = {"run_at": (now or datetime.now(TZ)).isoformat(timespec="seconds"),
              "trained_until": str(y.index[-1].date()), "window_days": state["window_days"],
-             "previous_model_live": previous, "gate": gate_result, "promoted": ok}
+             "previous_model_live": previous, "gate": gate_result, "promoted": ok,
+             "uses_temperature": weather is not None}
     state["history"] = (state.get("history", []) + [entry])[-24:]
     if not ok:
         failed = [k for k, v in gate_result["checks"].items() if not v]
         return False, "Gate failed: " + ", ".join(failed) + ". The current model stays.", state
-    model = fit_until(y, imputed, y.index[-1])
+    model = fit_until(y, imputed, y.index[-1], weather=weather)
+    model.uses_weather = weather is not None
     path = model_path or MODEL_PATH
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     joblib.dump(model, path)
@@ -364,12 +380,15 @@ def retrain(y, imputed, state, window_days=None, force=False, now=None, gate_fn=
     return True, f"New model trained on data up to {state['trained_until']} and promoted.", state
 
 
-def forecast(model, y, horizon=HORIZON):
-    rows = make_rows(y, [len(y) - 1], horizon)
+def forecast(model, y, horizon=HORIZON, weather=None):
+    rows = make_rows(y, [len(y) - 1], horizon, weather)
     point = model.predict(rows)
     lo, hi = model.predict_interval(rows)
     lo, hi = np.minimum(lo, point), np.maximum(hi, point)    # the range always contains the forecast
-    return pd.DataFrame({"date": rows["target_day"].dt.strftime("%Y-%m-%d"),
-                         "weekday": rows["target_day"].dt.day_name(),
-                         "holiday": rows["holiday"].astype(bool), "forecast_gwh": point.round(2),
-                         "lower_gwh": lo.round(2), "upper_gwh": hi.round(2)})
+    out = pd.DataFrame({"date": rows["target_day"].dt.strftime("%Y-%m-%d"),
+                        "weekday": rows["target_day"].dt.day_name(),
+                        "holiday": rows["holiday"].astype(bool), "forecast_gwh": point.round(2),
+                        "lower_gwh": lo.round(2), "upper_gwh": hi.round(2)})
+    if "temp_c" in rows:
+        out["temp_c"] = rows["temp_c"].round(1)
+    return out
