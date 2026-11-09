@@ -1,0 +1,51 @@
+name: Live retrain (manual)
+
+# Started by a person. Trains a new model only if enough new days were collected since the
+# last training, and promotes it only if it passes the gate (see docs/architecture.md).
+on:
+  workflow_dispatch:
+    inputs:
+      window_days:
+        description: "New days needed since the last training (minimum 7)"
+        required: true
+        default: "28"
+      force:
+        description: "Train now even if the window is not reached (the gate still applies)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write          # to commit data/live/state.json; nothing else
+
+concurrency:
+  group: live-data
+  cancel-in-progress: false
+
+jobs:
+  retrain:
+    if: vars.LIVE_MODE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Retrain behind the gate
+        env:                     # inputs go through env, never straight into the script
+          WINDOW: ${{ inputs.window_days }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          case "$WINDOW" in ''|*[!0-9]*) echo "window_days must be a whole number"; exit 1;; esac
+          args="--window-days $WINDOW"
+          if [ "$FORCE" = "true" ]; then args="$args --force"; fi
+          python live.py retrain $args | tee retrain.log
+          { echo '```'; cat retrain.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Commit the training state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/live/state.json
+          git diff --cached --quiet || { git commit -m "Live retrain: $(head -n 1 retrain.log)"; git push; }
