@@ -9,7 +9,7 @@
 [![Tests](https://github.com/saeedm31/energy-demand-forecast/actions/workflows/tests.yml/badge.svg)](https://github.com/saeedm31/energy-demand-forecast/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-📚 **Documentation:** [architecture](docs/architecture.md) · [model card](docs/model_card.md) · [data card](docs/data_card.md) · [AI agent workflow](docs/ai-agent-workflow.md)
+🚀 **[Live demo](https://sh-energy-demand-forecast.streamlit.app)** · 📚 **Documentation:** [architecture](docs/architecture.md) · [model card](docs/model_card.md) · [data card](docs/data_card.md) · [AI agent workflow](docs/ai-agent-workflow.md)
 
 ---
 
@@ -78,6 +78,7 @@ pip install -r requirements.txt
 
 python train.py            # 52-week backtest, logs runs, saves the model (a few minutes)
 python api.py              # dashboard at http://127.0.0.1:8000
+streamlit run streamlit_app.py   # or the demo app (household + live tabs)
 ```
 
 The cleaned daily data is included (`data/daily_energy.csv`). To rebuild it from the raw UCI file:
@@ -155,6 +156,7 @@ ISE, CC BY 4.0.
 ├── train.py                   # backtest, tracking, final model
 ├── live.py                    # live mode: collect, status, retrain (optional)
 ├── api.py                     # Flask API and dashboard
+├── streamlit_app.py           # demo app: household forecast, live mode, how it works
 ├── plot_backtest.py           # draws docs/backtest.svg from the backtest
 ├── energy_forecast/
 │   ├── features.py            # leakage-free features, French and Portuguese holidays
