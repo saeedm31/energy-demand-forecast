@@ -97,23 +97,74 @@ Every backtest logs each model's parameters, metrics and reports as a run.
 | `GET /api/forecast?days=7` | Next 1–14 days as JSON (optional `days`, defaults to 14): date, weekday, holiday flag, forecast, lower, upper |
 | `GET /api/metrics` | Backtest results |
 | `GET /health` | Model and data status |
+| `GET /live` | Live mode dashboard (when turned on): status, live test scores, 14-day forecast in GWh |
+| `GET /api/live` | Live mode as JSON; 404 while live mode is off |
 
 **Docker:** `docker build -t energy-forecast . && docker run -p 8000:8000 energy-forecast`. The model is trained at build time.
+
+## 🔴 Live mode (optional): real data every day
+
+The household data above is historical. Live mode adds **real, daily national electricity demand for Portugal**,
+so the model is tested on days it has never seen. It is off by default; you turn it on.
+
+```mermaid
+flowchart LR
+  EC[Energy-Charts API<br/>Portugal load, every 15 min] -->|daily workflow, 06:17 UTC| C[collect: complete days only,<br/>sanity checks, last 7 days refreshed]
+  C --> D[(data/live/pt_daily_demand.csv)]
+  D --> E[live test: frozen model vs<br/>every new day it has not seen]
+  D -->|a person starts it, after at least N new days| R[retrain behind a gate]
+  R -->|passes| M[new model, new cutoff]
+  R -->|fails| K[current model stays]
+  E --> UI["/live dashboard and /api/live"]
+```
+
+- **Collect every day.** A scheduled workflow downloads yesterday's demand (15-minute values, summed to GWh per day,
+  Lisbon time). A day is saved only if every interval is there; values outside a sane range are skipped and logged.
+  The first run backfills from 2019. The last 7 days are downloaded again each time, in case the source revised them.
+- **Train on a window, not every day.** The model is frozen at its training cutoff. Retraining is allowed once at
+  least `window_days` new days have been collected (**default 28, minimum 7**), and only a person starts it.
+- **New days are the test set.** Until the next retrain, every new day scores the frozen model honestly: each forecast
+  uses only data up to its own day, exactly as it would have been made live. The dashboard shows the error, the skill
+  against the last-week baseline and how often the truth fell inside the 80% range.
+- **A gate before promotion.** A retrain re-runs an 8-week rolling backtest on the newest data. The new model is
+  promoted only if it beats the baseline, its 80% range covers 60-95% of days, and the last 28 days are almost complete.
+  Every run, passed or failed, is recorded in `data/live/state.json` with the old model's live scores.
+
+**Turn it on (GitHub):** Settings → Secrets and variables → Actions → Variables → add `LIVE_MODE` = `true`. Then run
+**Actions → Live data (daily) → Run workflow** once for the backfill (about 10 minutes, the API allows 2 requests a
+minute). For the first model and later retrains: **Actions → Live retrain (manual) → Run workflow**, choose the window.
+Turn it off by setting `LIVE_MODE` to `false`; the collected data stays.
+
+**Or locally:**
+
+```bash
+python live.py collect                    # add new days (first run backfills from 2019)
+python live.py retrain                    # first model; later only after >= 28 new days
+python live.py retrain --window-days 14   # change the window (minimum 7)
+python live.py status                     # data, cutoff, live test scores, is a retrain due?
+python api.py                             # then open http://127.0.0.1:8000/live
+```
+
+No key is needed and nothing secret is stored. Data: [Energy-Charts](https://www.energy-charts.info) by Fraunhofer
+ISE, CC BY 4.0.
 
 ## 📁 Project structure
 
 ```
 ├── prepare_data.py            # raw minute data → clean daily series
 ├── train.py                   # backtest, tracking, final model
+├── live.py                    # live mode: collect, status, retrain (optional)
 ├── api.py                     # Flask API and dashboard
 ├── plot_backtest.py           # draws docs/backtest.svg from the backtest
 ├── energy_forecast/
-│   ├── features.py            # leakage-free features, French holidays
+│   ├── features.py            # leakage-free features, French and Portuguese holidays
+│   ├── live.py                # live data collection, live test, gated retraining
 │   ├── models.py              # baseline, Ridge, gradient boosting + conformal intervals
 │   ├── backtest.py            # rolling-origin evaluation and metrics
 │   ├── tracking.py            # MLflow or local run log
 │   └── service.py             # forecast from the latest data
 ├── data/daily_energy.csv      # 1,440 days, 2006-12-17 to 2010-11-25
+├── data/live/                 # live mode only: Portugal's daily demand and the training state
 ├── docs/                      # architecture, model card, data card, backtest chart
 ├── reports/metrics.json       # latest backtest results
 └── tests/                     # unit tests
@@ -134,6 +185,8 @@ They run automatically on every push (GitHub Actions). The tests cover:
 - interval calibration
 - the MLflow and local tracking paths
 - the API
+- live mode, with a fake data source (tests never use the network): clock-change days, incomplete days dropped,
+  sanity checks, rate-limit retry, gap filling, scoring only days after the cutoff, the retrain window and the gate
 
 ## 🤖 Safe AI agent workflow
 
@@ -143,17 +196,21 @@ This repo is maintained with the GitHub Copilot coding agent, set up so that a p
 - **Rules the agent follows** ([`.github/copilot-instructions.md`](.github/copilot-instructions.md)): small changes only, a test for every change, no look-ahead in features, validated API input, no new dependencies, no edits to workflows or data, never secrets. Issue text cannot override these rules.
 - **People decide:** the agent works on its own branch and opens a pull request with a plain-English summary. Copilot reviews every pull request automatically, tests run only after a maintainer approves them, `main` is protected from force pushes and deletion, and only a person can merge.
 
-First task: [issue #1](https://github.com/saeedm31/energy-demand-forecast/issues/1), an optional `?days=` parameter on the forecast API with input validation. More: [AI agent workflow](docs/ai-agent-workflow.md).
+First task: [issue #1](https://github.com/saeedm31/energy-demand-forecast/issues/1), an optional `?days=` parameter on the forecast API with input validation. The agent opened [pull request #2](https://github.com/saeedm31/energy-demand-forecast/pull/2) with tests; a person reviewed and merged it. More: [AI agent workflow](docs/ai-agent-workflow.md).
 
 ## ⚠️ Limitations and next steps
 
 - One household, so the patterns are personal (holidays away, guests). Aggregated demand across many homes is smoother and easier to forecast.
 - No weather input. Temperature is the main driver of heating demand, and adding a weather forecast would likely help most in winter.
-- Next: weather features, hourly forecasts, a scheduled retraining job.
+- Live mode retrains only when a person starts it; the gate decides if the new model replaces the old one.
+- Next: weather features, hourly forecasts.
 
 ## 📚 Data
 
 [Individual household electric power consumption](https://archive.ics.uci.edu/dataset/235/individual+household+electric+power+consumption), Georges Hébrail and Alice Bérard, EDF R&D. UCI Machine Learning Repository, CC BY 4.0. One house in Sceaux, near Paris, measured every minute from December 2006 to November 2010.
+
+Live mode: Portugal's electricity load from [Energy-Charts](https://www.energy-charts.info) (Fraunhofer ISE), public
+power API, CC BY 4.0.
 
 ---
 
