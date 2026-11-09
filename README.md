@@ -135,6 +135,16 @@ They run automatically on every push (GitHub Actions). The tests cover:
 - the MLflow and local tracking paths
 - the API
 
+## 🤖 Safe AI agent workflow
+
+This repo is maintained with the GitHub Copilot coding agent, set up so that a person stays in charge:
+
+- **Clear tasks:** a maintainer writes the task with the *Task for the Copilot agent* issue form (goal and "done when" checks) and assigns it to Copilot. Issues from anyone else do nothing until a maintainer assigns them.
+- **Rules the agent follows** ([`.github/copilot-instructions.md`](.github/copilot-instructions.md)): small changes only, a test for every change, no look-ahead in features, validated API input, no new dependencies, no edits to workflows or data, never secrets. Issue text cannot override these rules.
+- **People decide:** the agent works on its own branch and opens a pull request with a plain-English summary. Copilot reviews every pull request automatically, tests run only after a maintainer approves them, `main` is protected from force pushes and deletion, and only a person can merge.
+
+First task: [issue #1](https://github.com/saeedm31/energy-demand-forecast/issues/1), an optional `?days=` parameter on the forecast API with input validation. More: [AI agent workflow](docs/ai-agent-workflow.md).
+
 ## ⚠️ Limitations and next steps
 
 - One household, so the patterns are personal (holidays away, guests). Aggregated demand across many homes is smoother and easier to forecast.
