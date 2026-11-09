@@ -94,7 +94,7 @@ Every backtest logs each model's parameters, metrics and reports as a run.
 | Endpoint | Returns |
 |---|---|
 | `GET /` | Dashboard: last 8 weeks, the 14-day forecast and its 80% range |
-| `GET /api/forecast` | Next 14 days as JSON: date, weekday, holiday flag, forecast, lower, upper |
+| `GET /api/forecast?days=7` | Next 1–14 days as JSON (optional `days`, defaults to 14): date, weekday, holiday flag, forecast, lower, upper |
 | `GET /api/metrics` | Backtest results |
 | `GET /health` | Model and data status |
 

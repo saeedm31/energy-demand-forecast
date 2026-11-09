@@ -152,6 +152,15 @@ class ApiTests(unittest.TestCase):
             c = api.app.test_client()
             fc = c.get("/api/forecast").get_json()
             self.assertEqual(len(fc["days"]), features.HORIZON)
+            shorter = c.get("/api/forecast?days=7").get_json()
+            self.assertEqual(len(shorter["days"]), 7)
+            self.assertEqual(shorter["days"], fc["days"][:7])
+            for value in ("0", "15", "-3", "abc", "7.5", ""):
+                response = c.get(f"/api/forecast?days={value}")
+                self.assertEqual(response.status_code, 400, value)
+                self.assertEqual(response.get_json(), {
+                    "error": "days must be a whole number from 1 to 14"
+                }, value)
             first = fc["days"][0]
             self.assertLessEqual(first["lower_kwh"], first["upper_kwh"])
             self.assertEqual(c.get("/health").get_json()["days"], 420)

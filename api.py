@@ -15,7 +15,7 @@ import os
 from functools import lru_cache
 from html import escape
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 from energy_forecast import service
 
@@ -38,9 +38,17 @@ def metrics():
 
 @app.get("/api/forecast")
 def api_forecast():
+    raw_days = request.args.get("days", "14")
+    try:
+        days = int(raw_days)
+    except ValueError:
+        return jsonify(error="days must be a whole number from 1 to 14"), 400
+    if not 1 <= days <= 14:
+        return jsonify(error="days must be a whole number from 1 to 14"), 400
+
     y, _, fc = state()
     return jsonify(issued_after=str(y.index[-1].date()), unit="kWh per day", interval="80%",
-                   days=fc.to_dict(orient="records"))
+                   days=fc.iloc[:days].to_dict(orient="records"))
 
 
 @app.get("/api/metrics")
