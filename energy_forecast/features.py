@@ -66,12 +66,13 @@ def calendar_features(target_days, country="fr"):
     }, index=target_days)
 
 
-def make_rows(y, origins, horizon=HORIZON):
+def make_rows(y, origins, horizon=HORIZON, weather=None):
     """Build one feature row per (origin, horizon) pair.
 
     y: daily energy series with a DatetimeIndex and no gaps. Its holiday calendar is
        y.attrs["country"] ("fr" by default, "pt" in live mode).
     origins: positions in y of the last observed day for each forecast.
+    weather: optional energy_forecast.weather.Weather; adds the temperature known for each target day.
     Returns a DataFrame of features, with columns origin, target_day and h for bookkeeping.
     """
     values = y.to_numpy()
@@ -93,9 +94,15 @@ def make_rows(y, origins, horizon=HORIZON):
                          **recent, "same_dow": same_dow, "year_ago": year_ago})
     out = pd.DataFrame(rows)
     cal = calendar_features(pd.DatetimeIndex(out["target_day"]), y.attrs.get("country", "fr"))
-    return pd.concat([out, cal.reset_index(drop=True)], axis=1)
+    out = pd.concat([out, cal.reset_index(drop=True)], axis=1)
+    if weather is not None:
+        from .weather import weather_features
+        for name, values in weather_features(weather.temps(out["origin"], out["target_day"])).items():
+            out[name] = values
+    return out
 
 
 FEATURES = ["h", "lag_0", "lag_1", "lag_2", "mean_7", "mean_28", "std_7", "same_dow", "year_ago",
             "dow", "weekend", "holiday", "doy_sin", "doy_cos"]
+WEATHER_FEATURES = ["temp_c", "hdd", "cdd"]   # only in live mode, when temperature data exists
 FIRST_ORIGIN = 27  # need 28 days of history for mean_28

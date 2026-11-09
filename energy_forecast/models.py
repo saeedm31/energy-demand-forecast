@@ -8,10 +8,14 @@ from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from .features import FEATURES
+from .features import FEATURES, WEATHER_FEATURES
 
 RANDOM_STATE = 42
-NUMERIC = [f for f in FEATURES if f != "dow"]
+
+
+def columns(X):
+    """The model inputs: the standard features, plus temperature when the rows have it (live mode)."""
+    return FEATURES + [f for f in WEATHER_FEATURES if f in X.columns]
 
 
 class SeasonalNaive:
@@ -32,18 +36,19 @@ class RidgeModel:
 
     def __init__(self, alpha=3.0):
         self.params = {"alpha": alpha}
-        pre = ColumnTransformer([
-            ("num", make_pipeline(SimpleImputer(), StandardScaler()), NUMERIC),
-            ("dow", OneHotEncoder(handle_unknown="ignore"), ["dow"]),
-        ])
-        self.pipe = make_pipeline(pre, Ridge(alpha=alpha))
 
     def fit(self, X, y):
-        self.pipe.fit(X[FEATURES], y)
+        self.cols = columns(X)
+        pre = ColumnTransformer([
+            ("num", make_pipeline(SimpleImputer(), StandardScaler()), [c for c in self.cols if c != "dow"]),
+            ("dow", OneHotEncoder(handle_unknown="ignore"), ["dow"]),
+        ])
+        self.pipe = make_pipeline(pre, Ridge(alpha=self.params["alpha"]))
+        self.pipe.fit(X[self.cols], y)
         return self
 
     def predict(self, X):
-        return self.pipe.predict(X[FEATURES])
+        return self.pipe.predict(X[self.cols])
 
 
 class BoostingModel:
@@ -72,12 +77,13 @@ class BoostingModel:
 
     def fit(self, X, y):
         y = np.asarray(y)
+        self.cols = columns(X)
         # 1. Calibrate: fit the quantile models without the most recent days, score them on those days.
         cutoff = X["target_day"].max() - np.timedelta64(self.calibration_days, "D")
         cal = (X["target_day"] > cutoff).to_numpy()
         if cal.sum() >= 50 and (~cal).sum() >= 200:
-            self.lower.fit(X.loc[~cal, FEATURES], y[~cal])
-            self.upper.fit(X.loc[~cal, FEATURES], y[~cal])
+            self.lower.fit(X.loc[~cal, self.cols], y[~cal])
+            self.upper.fit(X.loc[~cal, self.cols], y[~cal])
             lo, hi = self._raw_interval(X[cal])
             scores = np.maximum(lo - y[cal], y[cal] - hi)
             n = len(scores)
@@ -85,15 +91,18 @@ class BoostingModel:
             self.margin = float(np.quantile(scores, level))
         # 2. Refit everything on all the data for the final forecasts.
         for m in (self.point, self.lower, self.upper):
-            m.fit(X[FEATURES], y)
+            m.fit(X[self.cols], y)
         return self
 
     def predict(self, X):
-        return self.point.predict(X[FEATURES])
+        return self.point.predict(X[self._cols()])
 
     def _raw_interval(self, X):
-        lo, hi = self.lower.predict(X[FEATURES]), self.upper.predict(X[FEATURES])
+        lo, hi = self.lower.predict(X[self._cols()]), self.upper.predict(X[self._cols()])
         return np.minimum(lo, hi), np.maximum(lo, hi)
+
+    def _cols(self):
+        return getattr(self, "cols", FEATURES)      # models saved before temperature support
 
     def predict_interval(self, X):
         lo, hi = self._raw_interval(X)

@@ -71,15 +71,19 @@ def live_view(data_version):
     """Everything live mode shows, recomputed when the live data or state file changes."""
     y, imputed = live.load()
     st = live.read_state()
+    weather = live.load_weather()
     info = live.status(y, imputed, st)
-    model = live.current_model(y, imputed, st)
+    info["uses_temperature"] = weather is not None
+    model = live.current_model(y, imputed, st, weather=weather)
     if model is None:
         return y, info, None, None
-    return y, info, live.live_evaluation(model, y, imputed, st["trained_until"]), live.forecast(model, y)
+    return (y, info, live.live_evaluation(model, y, imputed, st["trained_until"], weather=weather),
+            live.forecast(model, y, weather=weather))
 
 
 def live_version():
-    return tuple(os.path.getmtime(p) if os.path.exists(p) else 0 for p in (live.DATA_PATH, live.STATE_PATH))
+    paths = (live.DATA_PATH, live.STATE_PATH, live.wx.OBS_PATH, live.wx.FORECAST_PATH)
+    return tuple(os.path.getmtime(p) if os.path.exists(p) else 0 for p in paths)
 
 
 LIVE_OFF = {"error": "Live mode is off. Turn it on with the LIVE_MODE repository variable or run: python live.py collect"}

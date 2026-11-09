@@ -11,25 +11,25 @@ import pandas as pd
 from .features import FIRST_ORIGIN, HORIZON, make_rows
 
 
-def training_rows(y, last_origin, horizon=HORIZON):
+def training_rows(y, last_origin, horizon=HORIZON, weather=None):
     """All (origin, h) rows whose target day is on or before position `last_origin`."""
     origins = range(FIRST_ORIGIN, last_origin)
-    rows = make_rows(y, origins, horizon)
+    rows = make_rows(y, origins, horizon, weather)
     end = y.index[last_origin]
     return rows[rows["target_day"] <= end].reset_index(drop=True)
 
 
-def backtest(y, imputed, models, test_weeks=52, horizon=HORIZON, step=7):
+def backtest(y, imputed, models, test_weeks=52, horizon=HORIZON, step=7, weather=None):
     """Return one row per (model, origin, horizon) with forecast, actual and interval if any."""
     n = len(y)
     first_test_origin = n - horizon - step * (test_weeks - 1) - 1
     origins = list(range(first_test_origin, n - horizon, step))
     out = []
     for t in origins:
-        train = training_rows(y, t, horizon)
+        train = training_rows(y, t, horizon, weather)
         y_train = y.reindex(pd.DatetimeIndex(train["target_day"])).to_numpy()
         keep = ~imputed.reindex(pd.DatetimeIndex(train["target_day"])).to_numpy()   # don't learn from filled-in days
-        test = make_rows(y, [t], horizon)
+        test = make_rows(y, [t], horizon, weather)
         actual = y.reindex(pd.DatetimeIndex(test["target_day"])).to_numpy()
         is_imputed = imputed.reindex(pd.DatetimeIndex(test["target_day"])).to_numpy()
         for model in models:
