@@ -56,10 +56,10 @@ def holiday_flags(days, country="fr"):
 
 def calendar_features(target_days, country="fr"):
     """What is known in advance about the day being forecast."""
-    doy = target_days.dayofyear.to_numpy()
+    doy = target_days.day_of_year.to_numpy()
     return pd.DataFrame({
-        "dow": target_days.dayofweek,
-        "weekend": (target_days.dayofweek >= 5).astype(int),
+        "dow": target_days.day_of_week,
+        "weekend": (target_days.day_of_week >= 5).astype(int),
         "holiday": holiday_flags(target_days, country),
         "doy_sin": np.sin(2 * np.pi * doy / 365.25),
         "doy_cos": np.cos(2 * np.pi * doy / 365.25),
