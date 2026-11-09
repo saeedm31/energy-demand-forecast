@@ -40,4 +40,6 @@ ahead, coverage and width of the 80% range. Outage days are not scored. Results 
 Live mode (optional) does this on real national demand for Portugal: the model is frozen at its training cutoff and
 every new day is scored (MAE, skill against the baseline, 80% coverage). A person retrains after at least 28 new days
 (configurable, minimum 7), behind a gate: beat the baseline in an 8-week rolling backtest, coverage 60-95%, recent data
-complete. In live mode the target is GWh per day and holidays are Portuguese.
+complete. In live mode the target is GWh per day, holidays are Portuguese, and temperature is an input:
+the daily mean temperature, heating degrees below 16 °C and cooling degrees above 22 °C, taken from the weather
+forecast stored on the morning of each forecast (measured temperature for history before collection started).

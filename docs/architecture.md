@@ -45,6 +45,8 @@ so errors do not build up.
 Off by default. When the repository variable `LIVE_MODE` is `true`, a daily workflow adds yesterday's national
 demand for Portugal from the Energy-Charts API (series `load`, 15-minute MW values summed to GWh per Lisbon day).
 Only complete days pass, values outside 40-300 GWh are rejected, and the last 7 days are refreshed each run.
+The same run stores temperature from Open-Meteo: the measured daily mean of four cities and the 16-day weather
+forecast as issued that morning (`energy_forecast/weather.py`). The model uses the forecast known at the time.
 
 The model is frozen at a training cutoff stored in `data/live/state.json`. Days after the cutoff are the live test
 set: the frozen model forecasts each of them from data up to its own origin day, and `/live` shows the error,
@@ -57,6 +59,8 @@ binary model) is what is committed; the API rebuilds and caches the model for th
 | Piece | Where |
 |---|---|
 | Collection, checks, live test, gate | `energy_forecast/live.py`, `live.py` |
+| Temperature (measured and forecast) | `energy_forecast/weather.py` |
+| Demo app | `streamlit_app.py`, deployed on Streamlit Community Cloud |
 | Daily collection | `.github/workflows/live-data.yml` (runs only if `LIVE_MODE` is `true`) |
 | Manual retrain | `.github/workflows/live-retrain.yml` (window and force as inputs) |
 | Dashboard and JSON | `/live`, `/api/live` in `api.py` |

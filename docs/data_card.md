@@ -35,3 +35,14 @@ One household, so the patterns are personal. Aggregated demand across many homes
 | Checks | every interval present (23 or 25 hours on clock-change days), no nulls, 40-300 GWh, no duplicates |
 | Gaps | up to 7 missing days are filled with the same weekday a week earlier and flagged; never trained on or scored |
 | Personal data | none: national totals |
+
+## Live mode temperature (optional)
+
+| | |
+|---|---|
+| Source | [Open-Meteo](https://open-meteo.com): historical archive (ERA5) and forecast API; no key |
+| Licence | CC BY 4.0, non-commercial use; credit "Open-Meteo.com" (shown on the dashboard) |
+| What | daily mean temperature, (max + min) / 2, of Lisbon 50%, Porto 30%, Coimbra 10%, Faro 10% (rough population weights) |
+| Stored | `data/live/pt_weather.csv` (measured, from 2019) and `data/live/pt_weather_forecasts.csv` (every 16-day forecast, as issued) |
+| Checks | all four cities present, -15 to 45 °C |
+| Honesty | forecasts use the weather forecast stored on that morning; before collection started, measured temperature stands in |
