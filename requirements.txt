@@ -4,5 +4,7 @@ scikit-learn>=1.3
 joblib>=1.3
 Flask>=3.0
 gunicorn>=22.0
+tzdata               # time zones for live mode on slim images
+streamlit>=1.50      # demo app (streamlit_app.py)
 # Optional: experiment tracking UI. Without it, runs are logged to runs/runs.jsonl.
 # mlflow>=2.10
